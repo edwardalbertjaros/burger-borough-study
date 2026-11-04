@@ -1001,6 +1001,7 @@
     state.exitReason = `voluntary_level_${state.level}_order_${Math.min(state.orderIndex + 1, levelCombos().length)}`;
     save();
     renderContinue();
+    returnToSurvey();
   }
 
   function finishAfterFailure() {
@@ -1067,8 +1068,8 @@
 
   function renderContinue() {
     state.screen = "continue";
-    screen.innerHTML = `<p class="eyebrow">Gameplay complete</p><h1>Return to the Survey</h1><p>Your Burger Borough session is complete. Select the button below for instructions to continue the survey.</p><div id="returnMessage"></div>`;
-    setActionDock("Gameplay complete", "Return to Qualtrics when ready.", `<button class="primary" data-action="return-survey" type="button">Return to Survey Instructions</button>`, "continue");
+    screen.innerHTML = `<p class="eyebrow">Gameplay complete</p><h1>Saving Your Results</h1><p>Burger Borough is transferring your gameplay summary to the survey.</p><div id="returnMessage"><div class="notice"><strong>Sending results…</strong> Please keep this page open.</div></div>`;
+    setActionDock("Saving results", "Please wait.", `<button class="primary" type="button" disabled>Sending Results…</button>`, "continue");
     updateHeader();
     save();
   }
@@ -1151,15 +1152,28 @@
 
   function showReturnRetry() {
     const message = document.querySelector("#returnMessage");
-    if (message) message.innerHTML = `<div class="notice success"><strong>Gameplay complete.</strong> Use your browser's Back button once to return to the Qualtrics survey. Then select Next to continue.</div>`;
+    if (message) {
+      const explanation = connectedToSurvey()
+        ? "The survey has not confirmed receipt yet."
+        : "This preview is not connected to a Qualtrics survey.";
+      message.innerHTML = `<div class="notice error"><strong>Results were not confirmed.</strong> ${explanation}</div>`;
+    }
+    setActionDock("Transfer incomplete", "Your gameplay is still saved.", `<button class="primary" data-action="retry-return" type="button">Try Sending Results Again</button>`, "continue");
   }
 
   function returnToSurvey() {
-    state.finalized = true;
+    state.finalized = false;
     save();
     if (returnRetryTimer && typeof window.clearTimeout === "function") window.clearTimeout(returnRetryTimer);
     returnRetryTimer = 0;
-    showReturnRetry();
+    const message = document.querySelector("#returnMessage");
+    if (message) message.innerHTML = `<div class="notice"><strong>Sending results…</strong> Please keep this page open.</div>`;
+    setActionDock("Saving results", "Please wait.", `<button class="primary" type="button" disabled>Sending Results…</button>`, "continue");
+    if (!sendCompleteResults()) {
+      showReturnRetry();
+      return;
+    }
+    returnRetryTimer = window.setTimeout(showReturnRetry, 6000);
   }
 
   function restoreScreen() {
@@ -1241,7 +1255,6 @@
       renderReward();
     } else if (action === "finish-reward") {
       renderContinue();
-    } else if (action === "return-survey") {
       returnToSurvey();
     } else if (action === "retry-return") {
       returnToSurvey();
@@ -1278,7 +1291,8 @@
       returnRetryTimer = 0;
       save();
       const message = document.querySelector("#returnMessage");
-      if (message) message.innerHTML = `<div class="notice success"><strong>Results received.</strong> Returning to the survey… If the survey does not advance, use Continue to Survey below.</div><button class="primary return-retry" data-action="retry-return" type="button">Continue to Survey</button>`;
+      if (message) message.innerHTML = `<div class="notice success"><strong>Results received.</strong> Continuing to the survey…</div>`;
+      setActionDock("Results received", "Continuing automatically.", `<button class="primary" type="button" disabled>Continuing…</button>`, "continue");
     } else if (event.data.type === "burger-borough-error") {
       state.finalized = false;
       if (returnRetryTimer && typeof window.clearTimeout === "function") window.clearTimeout(returnRetryTimer);
